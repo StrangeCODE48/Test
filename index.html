@@ -1,0 +1,184 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Link Extractor & Background Opener</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      width: 500px;
+      text-align: center;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      margin-bottom: 15px;
+      resize: none;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      background: #007BFF;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .links {
+      margin-top: 15px;
+      text-align: left;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .links a {
+      display: block;
+      color: #007BFF;
+      text-decoration: none;
+      margin: 5px 0;
+    }
+    .links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Link Extractor</h2>
+    <textarea id="inputText" placeholder="Paste your text with links here..."></textarea>
+    <br>
+    <button onclick="extractLinks()">Extract & Open Links</button>
+    <div class="links" id="linkList"></div>
+  </div>
+
+  <script>
+function extractLinks() {
+  const text = document.getElementById("inputText").value;
+  const regex = /(https?:\/\/[^\s]+)/g;
+  const links = text.match(regex);
+
+  const linkList = document.getElementById("linkList");
+  linkList.innerHTML = "";
+
+  if (links) {
+    links.forEach(url => {
+      const a = document.createElement("a");
+      a.href = url;
+      a.textContent = url;
+      a.target = "_blank";
+      linkList.appendChild(a);
+
+      // Open all tabs "together" on one click
+      const newTab = window.open(url, '_blank', 'noopener');
+    });
+
+    // Try to refocus opener tab
+    setTimeout(() => {
+      window.focus();
+    }, 500);
+  } else {
+    linkList.innerHTML = "<p>No links found.</p>";
+  }
+}
+</script>
+
+</body>
+</html> -->
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Best-effort Background Link Opener</title>
+<style>
+  body{font-family:Inter,Arial,Helvetica,sans-serif;background:#f3f6fb;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+  .card{width:720px;background:white;padding:20px;border-radius:12px;box-shadow:0 6px 18px rgba(17,24,39,0.08)}
+  textarea{width:100%;height:180px;padding:12px;border-radius:8px;border:1px solid #e2e8f0;resize:vertical;font-size:14px}
+  .row{display:flex;gap:8px;margin-top:12px}
+  button{padding:10px 14px;border:0;border-radius:8px;cursor:pointer;font-weight:600}
+  .primary{background:#0b74ff;color:white}
+  .ghost{background:#eef2ff;color:#0b74ff}
+  #linkList{margin-top:12px;max-height:180px;overflow:auto;padding:8px;border-radius:6px;border:1px dashed #e6eefc;background:#fbfdff}
+  .small{font-size:13px;color:#475569}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h3>Extract links & try open in background (best-effort)</h3>
+    <p class="small">Paste text containing links (http/https). Click <strong>Open in background</strong>. Browsers may still focus the first opened tab.</p>
+    <textarea id="input" placeholder="Paste text here..."></textarea>
+    <div class="row">
+      <button class="primary" id="openBtn">Open in background</button>
+      <button class="ghost" id="previewBtn">Show extracted links</button>
+    </div>
+    <div id="linkList"></div>
+  </div>
+
+<script>
+const rx = /https?:\/\/[^\s"'<>()]+/gi;
+
+function extract(text){
+  const matches = text.match(rx) || [];
+  // dedupe preserving order
+  const seen = new Set(); const out = [];
+  for(const u of matches){
+    const cleaned = u.replace(/[.,;:)\]]+$/,''); // trim trailing punctuation
+    if(!seen.has(cleaned)){ seen.add(cleaned); out.push(cleaned); }
+  }
+  return out;
+}
+
+document.getElementById('previewBtn').addEventListener('click', ()=>{
+  const links = extract(document.getElementById('input').value);
+  const list = document.getElementById('linkList');
+  list.innerHTML = links.length ? links.map(l=>`<div><a href="${l}" target="_blank" rel="noopener">${l}</a></div><br/>`).join('') : '<i class="small">No links found</i>';
+});
+
+document.getElementById('openBtn').addEventListener('click', ()=>{
+  const links = extract(document.getElementById('input').value);
+  if(links.length===0){ alert('No links found'); return; }
+
+  // Strategy: open one-by-one with a short delay, restore focus immediately after each open,
+  // and finally focus opener to try to maintain original page visibility.
+  // This is best-effort only.
+  (async ()=>{
+    for(let i=0;i<links.length;i++){
+      try{
+        const w = window.open(links[i], '_blank', 'noopener');
+        // try to blur the newly opened window and refocus the opener
+        if(w){
+          try{ w.blur(); } catch(e){} // may throw depending on browser/security
+        }
+      } catch(err){
+        console.warn('open failed', err);
+      }
+      // tiny pause to allow browser to create the tab
+      await new Promise(r => setTimeout(r, 250)); // adjust (250ms) if needed
+      try{ window.focus(); } catch(e){} // request focus back
+    }
+    // ensure final focus restored
+    setTimeout(()=>{ try{ window.focus(); }catch(e){} }, 400);
+    alert('Done trying to open ' + links.length + ' links (best-effort).');
+  })();
+});
+</script>
+</body>
+</html>
